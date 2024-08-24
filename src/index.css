@@ -66,3 +66,63 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+.app-container {
+  text-align: center;
+  margin-top: 50px;
+}
+
+.scanner-container {
+  display: inline-block;
+  margin-bottom: 20px;
+}
+
+.button-container {
+  margin-top: 20px;
+}
+
+button {
+  padding: 10px 20px;
+  margin: 0 10px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+button.active {
+  background-color: #007bff;
+  color: white;
+}
+
+.result-text {
+  margin-top: 20px;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+
+/* .app-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background-color: #f0f4f8;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+.scanner-container {
+  margin-bottom: 20px;
+}
+
+.info-container {
+  margin-top: 20px;
+  font-size: 18px;
+  color: #333;
+}
+
+h1 {
+  color: #007acc;
+  margin-bottom: 30px;
+  font-size: 32px;
+} */
