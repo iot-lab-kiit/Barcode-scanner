@@ -44,40 +44,51 @@ function App() {
     const checkUnattendedCheckouts = async () => {
       const currentHour = new Date().getHours();
       if (currentHour === 0) {
-        //  midnight
+         // Midnight
         console.log("It's midnight, sending unattended checkouts...");
-
+  
+        const allUnattended = [];
+  
+        // Gather all data from localStorage first
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           const userData = JSON.parse(localStorage.getItem(key));
-          console.log("Sending data for:", userData);
-
-          try {
-            const response = await axios.post(
-              "http://13.232.181.16/items/attendance",
-              {
-                roll: userData.roll,
-                in_time: userData.in_time,
-                out_time: null,
-              }
-            );
-            localStorage.removeItem(key);
-            setData("No result");
-            setTimeSpent(null);
-            setCheckedStatus("None");
-          } catch (error) {
-            console.error(
-              `Failed to log unattended user ${userData.roll}:`,
-              error
-            );
-          }
-
+          allUnattended.push({ key, userData });
         }
+
+  
+        await Promise.all(
+          allUnattended.map(async ({ key, userData }) => {
+            try {
+              await axios.post(
+                "http://13.232.181.16/items/attendance",
+                {
+                  roll: userData.roll,
+                  in_time: userData.in_time,
+                  out_time: null, // No checkout, so out_time is null
+                }
+              );
+              console.log(`Logged unattended user ${userData.roll}`);
+            } catch (error) {
+              console.error(
+                `Failed to log unattended user ${userData.roll}:`,
+                error
+              );
+            }
+          })
+        );
+  
+        // Once all requests are done, clear localStorage
+        localStorage.clear();
+        setData("No result");
+        setTimeSpent(null);
+        setCheckedStatus("None");
       }
     };
-
+  
     checkUnattendedCheckouts();
   }, []);
+  
 
   const insertData = async (timeType, barcodeData, time) => {
     console.log(
@@ -90,8 +101,6 @@ function App() {
         console.log("Checked in:", inData);
         setCheckedStatus("Checked In");
 
-        console.log("hello", inData);
-        console.log(JSON.stringify(inData));
         localStorage.setItem(barcodeData, JSON.stringify(inData));
         // Simulate storing in_time in backend/cache
         // await axios.post(BASE_URL, inData); // Uncomment when integrating with backend
