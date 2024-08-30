@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import "./App.css";
 import { BarcodeScanner } from "@thewirv/react-barcode-scanner";
 import { Scanner } from "@yudiel/react-qr-scanner";
+import axios from "axios";
 
 // Function to insert data for check-in and check-out
 
@@ -25,6 +26,59 @@ function App() {
     return () => clearInterval(intervalId); // Cleanup interval on component unmount
   }, []);
 
+  useEffect(() => {
+    const storedData = Object.entries(localStorage).find(
+      ([key, value]) => JSON.parse(value).in_time
+    );
+
+    if (storedData) {
+      const [barcodeData, inData] = storedData;
+      setData(barcodeData);
+      setTimeType("out_time");
+      setCheckedStatus("Checked In");
+      console.log("Restored check-in data from localStorage:", inData);
+    }
+  }, []);
+
+  useEffect(() => {
+    const checkUnattendedCheckouts = async () => {
+      const currentHour = new Date().getHours();
+      if (currentHour === 0) {
+        //  midnight
+        console.log("It's midnight, sending unattended checkouts...");
+
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          const userData = JSON.parse(localStorage.getItem(key));
+          console.log("Sending data for:", userData);
+
+          try {
+            const response = await axios.post(
+              "http://13.232.181.16/items/attendance",
+              {
+                roll: userData.roll,
+                in_time: userData.in_time,
+                out_time: null,
+              }
+            );
+            localStorage.removeItem(key);
+            setData("No result");
+            setTimeSpent(null);
+            setCheckedStatus("None");
+          } catch (error) {
+            console.error(
+              `Failed to log unattended user ${userData.roll}:`,
+              error
+            );
+          }
+
+        }
+      }
+    };
+
+    checkUnattendedCheckouts();
+  }, []);
+
   const insertData = async (timeType, barcodeData, time) => {
     console.log(
       `Processing ${timeType} for roll number ${barcodeData} at ${time}`
@@ -35,9 +89,39 @@ function App() {
         const inData = { roll: barcodeData, in_time: time };
         console.log("Checked in:", inData);
         setCheckedStatus("Checked In");
+
+        console.log("hello", inData);
+        console.log(JSON.stringify(inData));
+        localStorage.setItem(barcodeData, JSON.stringify(inData));
         // Simulate storing in_time in backend/cache
         // await axios.post(BASE_URL, inData); // Uncomment when integrating with backend
       } else if (timeType === "out_time") {
+        console.log("checking out...");
+
+        const storedData = localStorage.getItem(barcodeData);
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          const inTime = new Date(parsedData.in_time);
+          const outTime = new Date(time);
+
+          const diffInMs = outTime.getTime() - inTime.getTime();
+
+          const timeSpentInMinutes = Math.floor(diffInMs / 60000);
+
+          const formattedTimeSpent =
+            timeSpentInMinutes > 60
+              ? `${Math.floor(timeSpentInMinutes / 60)} hours and ${
+                  timeSpentInMinutes % 60
+                } minutes`
+              : `${timeSpentInMinutes} minutes`;
+
+          console.log("Checked out:", { roll: barcodeData, out_time: time });
+          setCheckedStatus("Checked Out");
+          console.log(`Time spent: ${formattedTimeSpent}`);
+
+          localStorage.removeItem(barcodeData);
+          setTimeSpent(formattedTimeSpent);
+        }
         // Simulate fetching check-in time from backend or cache memory
         const response = {
           data: {
@@ -62,6 +146,8 @@ function App() {
           setCheckedStatus("Checked Out");
           console.log(`Time spent: ${timeSpent} minutes`);
           // await axios.patch(`${BASE_URL}/${barcodeData}`, { out_time: time, duration: timeSpent }); // Uncomment for backend
+
+          localStorage.removeItem(barcodeData);
           return timeSpent;
         } else {
           console.log(
@@ -85,26 +171,48 @@ function App() {
     console.log(`Auto check-out at ${time}`);
   };
 
+
+  // this is old  handleSuccess function , I(Jatin) have made new one , may be you need something from this old function that's why kept it ,remove this function if not needed 
+ 
+  // const handleSuccess = async (barcodeData) => {
+  //   console.log("Barcode scanned:", barcodeData);
+  //   setData(barcodeData);
+
+  //   const time = new Date().toISOString(); // Automatically captures the current time from the browser
+  //   const spentTime = await insertData(timeType, barcodeData, time);
+
+  //   if (timeType === "out_time" && spentTime !== undefined) {
+  //     setTimeSpent(
+  //       spentTime > 60
+  //         ? `${Math.floor(spentTime / 60)} hours and ${Math.floor(
+  //             spentTime % 60
+  //           )} minutes`
+  //         : `${Math.floor(spentTime)} minutes`
+  //     );
+  //   }
+
+  //   setTimeType((prevType) =>
+  //     prevType === "in_time" ? "out_time" : "in_time"
+  //   );
+  // };
+
+ 
+
   const handleSuccess = async (barcodeData) => {
     console.log("Barcode scanned:", barcodeData);
     setData(barcodeData);
 
-    const time = new Date().toISOString(); // Automatically captures the current time from the browser
-    const spentTime = await insertData(timeType, barcodeData, time);
+    const storedData = localStorage.getItem(barcodeData);
 
-    if (timeType === "out_time" && spentTime !== undefined) {
-      setTimeSpent(
-        spentTime > 60
-          ? `${Math.floor(spentTime / 60)} hours and ${Math.floor(
-              spentTime % 60
-            )} minutes`
-          : `${Math.floor(spentTime)} minutes`
-      );
+    const time = new Date().toISOString();
+
+    if (storedData) {
+      await insertData("out_time", barcodeData, time);
+      setTimeType("in_time"); // After check-out, next scan will be check-in
+    } else {
+      await insertData("in_time", barcodeData, time);
+      setTimeType("out_time"); // After check-in, next scan will be check-out
     }
-
-    setTimeType((prevType) =>
-      prevType === "in_time" ? "out_time" : "in_time"
-    );
   };
 
   return (
